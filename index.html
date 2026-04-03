@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TokenScope — Visual Token Budget Planner</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#1c2333;--border:#30363d;
+  --text:#e6edf3;--text-dim:#8b949e;--accent:#58a6ff;--accent2:#3fb950;
+  --warn:#d29922;--danger:#f85149;--purple:#bc8cff;
+  --radius:8px;
+}
+html{font-size:15px}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh;display:flex;flex-direction:column}
+a{color:var(--accent);text-decoration:none}
+
+.container{max-width:1100px;margin:0 auto;padding:1.2rem;width:100%}
+
+header{padding:1.5rem 0 0.5rem;text-align:center}
+header h1{font-size:1.8rem;font-weight:700;letter-spacing:-0.5px}
+header h1 span{color:var(--accent)}
+header p{color:var(--text-dim);font-size:0.9rem;margin-top:0.3rem}
+
+.grid{display:grid;gap:1rem;margin-top:1rem}
+.grid-2{grid-template-columns:1fr 1fr}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem}
+.card h2{font-size:1rem;font-weight:600;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.4rem}
+.card h2 .icon{font-size:1.1rem}
+
+textarea{width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:0.75rem;font-family:inherit;font-size:0.85rem;resize:vertical;min-height:120px;transition:border-color 0.2s}
+textarea:focus{outline:none;border-color:var(--accent)}
+
+.stats-row{display:flex;gap:1rem;margin-top:0.75rem;flex-wrap:wrap}
+.stat{background:var(--surface2);border-radius:var(--radius);padding:0.6rem 0.9rem;flex:1;min-width:100px;text-align:center}
+.stat .val{font-size:1.3rem;font-weight:700;color:var(--accent)}
+.stat .label{font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}
+
+.model-row{display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0;border-bottom:1px solid var(--border)}
+.model-row:last-child{border-bottom:none}
+.model-name{width:160px;flex-shrink:0;font-size:0.82rem;font-weight:500}
+.model-name small{color:var(--text-dim);font-weight:400}
+.bar-wrap{flex:1;background:var(--surface2);border-radius:4px;height:22px;overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:4px;transition:width 0.4s ease;min-width:2px}
+.bar-pct{width:52px;text-align:right;font-size:0.82rem;font-weight:600;flex-shrink:0}
+.bar-fill.green{background:linear-gradient(90deg,#238636,#3fb950)}
+.bar-fill.yellow{background:linear-gradient(90deg,#9e6a03,#d29922)}
+.bar-fill.red{background:linear-gradient(90deg,#b62324,#f85149)}
+
+.budget-section{display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap}
+.budget-section label{width:130px;font-size:0.82rem;flex-shrink:0}
+.budget-section input{flex:1;min-width:0;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:0.45rem 0.6rem;font-size:0.82rem;font-family:inherit}
+.budget-section input:focus{outline:none;border-color:var(--accent)}
+.budget-section .token-count{width:90px;text-align:right;font-size:0.82rem;color:var(--accent);font-weight:600;flex-shrink:0}
+
+.budget-total{margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border)}
+.budget-total .row{display:flex;justify-content:space-between;font-size:0.85rem;padding:0.2rem 0}
+.budget-total .row .val{font-weight:600}
+.budget-total .row.remaining .val.ok{color:var(--accent2)}
+.budget-total .row.remaining .val.warn{color:var(--warn)}
+.budget-total .row.remaining .val.over{color:var(--danger)}
+
+.budget-models{margin-top:0.6rem}
+.budget-model-row{display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;padding:0.3rem 0;border-bottom:1px solid var(--border)}
+.budget-model-row:last-child{border-bottom:none}
+.budget-remaining{font-weight:600}
+.budget-remaining.ok{color:var(--accent2)}
+.budget-remaining.warn{color:var(--warn)}
+.budget-remaining.over{color:var(--danger)}
+
+.cost-table{width:100%;border-collapse:collapse;font-size:0.82rem}
+.cost-table th{text-align:left;padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);color:var(--text-dim);font-weight:500;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.5px}
+.cost-table td{padding:0.4rem 0.5rem;border-bottom:1px solid var(--border)}
+.cost-table tr:last-child td{border-bottom:none}
+.cost-table .cost-val{font-weight:600;color:var(--accent2)}
+
+.tips{list-style:none;display:flex;flex-direction:column;gap:0.5rem}
+.tips li{display:flex;gap:0.5rem;font-size:0.82rem;padding:0.5rem 0.65rem;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--border);align-items:flex-start}
+.tips li.warn{border-left-color:var(--warn)}
+.tips li.danger{border-left-color:var(--danger)}
+.tips li.ok{border-left-color:var(--accent2)}
+.tips li .tip-icon{flex-shrink:0;margin-top:1px}
+
+.select-model{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:0.4rem 0.6rem;font-size:0.82rem;font-family:inherit;cursor:pointer}
+.select-model:focus{outline:none;border-color:var(--accent)}
+
+footer{text-align:center;padding:1.5rem;color:var(--text-dim);font-size:0.75rem;margin-top:auto;border-top:1px solid var(--border)}
+footer strong{color:var(--text);font-weight:600}
+
+.tab-bar{display:flex;gap:0.25rem;margin-bottom:0.75rem}
+.tab-btn{background:var(--surface2);color:var(--text-dim);border:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0;padding:0.4rem 0.9rem;font-size:0.78rem;cursor:pointer;font-family:inherit;transition:all 0.2s}
+.tab-btn.active{background:var(--surface);color:var(--accent);border-bottom-color:var(--surface)}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+@media(max-width:700px){
+  .grid-2{grid-template-columns:1fr}
+  .model-name{width:110px;font-size:0.75rem}
+  .bar-pct{width:44px;font-size:0.75rem}
+  .budget-section label{width:100px}
+  .stats-row{gap:0.5rem}
+  .stat{padding:0.4rem 0.5rem}
+  .stat .val{font-size:1.1rem}
+  header h1{font-size:1.4rem}
+  .cost-table{font-size:0.75rem}
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1><span>Token</span>Scope</h1>
+    <p>Visual token budget planner for LLM prompts</p>
+  </header>
+
+  <div class="grid">
+    <!-- Quick Estimate -->
+    <div class="card">
+      <h2><span class="icon">&#9998;</span> Quick Estimate</h2>
+      <textarea id="quickText" placeholder="Paste your prompt, system message, or any text here to estimate token usage..."></textarea>
+      <div class="stats-row">
+        <div class="stat"><div class="val" id="charCount">0</div><div class="label">Characters</div></div>
+        <div class="stat"><div class="val" id="wordCount">0</div><div class="label">Words</div></div>
+        <div class="stat"><div class="val" id="tokenCount">0</div><div class="label">Est. Tokens</div></div>
+      </div>
+    </div>
+
+    <!-- Model Comparison -->
+    <div class="card">
+      <h2><span class="icon">&#9878;</span> Model Context Windows</h2>
+      <div id="modelBars"></div>
+    </div>
+
+    <!-- Budget Planner + Cost side by side -->
+    <div class="grid grid-2">
+      <!-- Budget Planner -->
+      <div class="card">
+        <h2><span class="icon">&#9881;</span> Budget Planner</h2>
+        <div class="tab-bar">
+          <button class="tab-btn active" data-tab="budget-input">Allocate</button>
+          <button class="tab-btn" data-tab="budget-models">Per Model</button>
+        </div>
+
+        <div class="tab-content active" id="tab-budget-input">
+          <div class="budget-section">
+            <label>System Prompt</label>
+            <textarea id="budgetSystem" rows="2" style="min-height:48px" placeholder="Paste system prompt..."></textarea>
+            <div class="token-count" id="budgetSystemCount">0 tk</div>
+          </div>
+          <div class="budget-section">
+            <label>Few-Shot Examples</label>
+            <textarea id="budgetFewShot" rows="2" style="min-height:48px" placeholder="Paste few-shot examples..."></textarea>
+            <div class="token-count" id="budgetFewShotCount">0 tk</div>
+          </div>
+          <div class="budget-section">
+            <label>User Input</label>
+            <textarea id="budgetUser" rows="2" style="min-height:48px" placeholder="Paste user message..."></textarea>
+            <div class="token-count" id="budgetUserCount">0 tk</div>
+          </div>
+          <div class="budget-section">
+            <label>Output Reserve</label>
+            <input type="number" id="budgetOutput" value="4096" min="0" step="256" placeholder="Tokens reserved for response">
+            <div class="token-count" id="budgetOutputCount">4,096 tk</div>
+          </div>
+
+          <div class="budget-total">
+            <div class="row"><span>Total prompt tokens</span><span class="val" id="budgetTotalPrompt">0</span></div>
+            <div class="row"><span>Output reserve</span><span class="val" id="budgetTotalOutput">4,096</span></div>
+            <div class="row"><span>Grand total</span><span class="val" id="budgetGrandTotal">4,096</span></div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-budget-models">
+          <div class="budget-models" id="budgetModels"></div>
+        </div>
+      </div>
+
+      <!-- Cost Estimate -->
+      <div class="card">
+        <h2><span class="icon">&#36;</span> Cost Estimate</h2>
+        <p style="font-size:0.75rem;color:var(--text-dim);margin-bottom:0.5rem">
+          Based on budget planner totals. Prices per 1M tokens.
+        </p>
+        <table class="cost-table">
+          <thead>
+            <tr><th>Model</th><th>Input</th><th>Output</th><th>Request Cost</th></tr>
+          </thead>
+          <tbody id="costBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tips -->
+    <div class="card">
+      <h2><span class="icon">&#9888;</span> Prompt Tips</h2>
+      <ul class="tips" id="tipsContainer">
+        <li class="ok"><span class="tip-icon">&#10003;</span> Enter text above to get contextual tips.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<footer>Built by <strong>Rocket Labs AI</strong></footer>
+
+<script>
+const MODELS = [
+  { name: 'GPT-4o',               ctx: 128000,  inputPrice: 2.50,  outputPrice: 10.00 },
+  { name: 'Claude Sonnet',        ctx: 200000,  inputPrice: 3.00,  outputPrice: 15.00 },
+  { name: 'Claude Opus',          ctx: 200000,  inputPrice: 15.00, outputPrice: 75.00 },
+  { name: 'Claude Max (1M)',      ctx: 1000000, inputPrice: 15.00, outputPrice: 75.00 },
+  { name: 'Gemini Pro',           ctx: 2000000, inputPrice: 1.25,  outputPrice: 5.00 },
+  { name: 'Llama 3 (128K)',       ctx: 128000,  inputPrice: 0.80,  outputPrice: 0.80 },
+  { name: 'Mistral Large (128K)', ctx: 128000,  inputPrice: 2.00,  outputPrice: 6.00 }
+];
+
+function estimateTokens(text) {
+  if (!text) return 0;
+  return Math.ceil(text.length / 4);
+}
+
+function countWords(text) {
+  if (!text.trim()) return 0;
+  return text.trim().split(/\s+/).length;
+}
+
+function fmt(n) {
+  return n.toLocaleString();
+}
+
+function barClass(pct) {
+  if (pct > 75) return 'red';
+  if (pct > 50) return 'yellow';
+  return 'green';
+}
+
+function budgetClass(remaining, ctx) {
+  if (remaining < 0) return 'over';
+  if (remaining / ctx < 0.1) return 'warn';
+  return 'ok';
+}
+
+// Build model bars
+function buildModelBars() {
+  const container = document.getElementById('modelBars');
+  container.innerHTML = MODELS.map(m => `
+    <div class="model-row" data-ctx="${m.ctx}">
+      <div class="model-name">${m.name}<br><small>${fmt(m.ctx)} tokens</small></div>
+      <div class="bar-wrap"><div class="bar-fill green" style="width:0%"></div></div>
+      <div class="bar-pct">0%</div>
+    </div>
+  `).join('');
+}
+
+function updateModelBars(tokens) {
+  const rows = document.querySelectorAll('#modelBars .model-row');
+  rows.forEach((row, i) => {
+    const ctx = MODELS[i].ctx;
+    const pct = Math.min((tokens / ctx) * 100, 100);
+    const fill = row.querySelector('.bar-fill');
+    const label = row.querySelector('.bar-pct');
+    fill.style.width = pct.toFixed(2) + '%';
+    fill.className = 'bar-fill ' + barClass(pct);
+    label.textContent = pct < 0.01 && tokens > 0 ? '<0.1%' : pct.toFixed(1) + '%';
+  });
+}
+
+// Budget planner
+function getBudgetTokens() {
+  const sys = estimateTokens(document.getElementById('budgetSystem').value);
+  const few = estimateTokens(document.getElementById('budgetFewShot').value);
+  const usr = estimateTokens(document.getElementById('budgetUser').value);
+  const out = parseInt(document.getElementById('budgetOutput').value) || 0;
+  return { sys, few, usr, out, prompt: sys + few + usr, total: sys + few + usr + out };
+}
+
+function updateBudget() {
+  const b = getBudgetTokens();
+  document.getElementById('budgetSystemCount').textContent = fmt(b.sys) + ' tk';
+  document.getElementById('budgetFewShotCount').textContent = fmt(b.few) + ' tk';
+  document.getElementById('budgetUserCount').textContent = fmt(b.usr) + ' tk';
+  document.getElementById('budgetOutputCount').textContent = fmt(b.out) + ' tk';
+  document.getElementById('budgetTotalPrompt').textContent = fmt(b.prompt);
+  document.getElementById('budgetTotalOutput').textContent = fmt(b.out);
+  document.getElementById('budgetGrandTotal').textContent = fmt(b.total);
+
+  // Per-model remaining
+  const mc = document.getElementById('budgetModels');
+  mc.innerHTML = MODELS.map(m => {
+    const rem = m.ctx - b.total;
+    const cls = budgetClass(rem, m.ctx);
+    return `<div class="budget-model-row">
+      <span>${m.name} <small style="color:var(--text-dim)">(${fmt(m.ctx)})</small></span>
+      <span class="budget-remaining ${cls}">${rem < 0 ? '−' : ''}${fmt(Math.abs(rem))} remaining</span>
+    </div>`;
+  }).join('');
+
+  // Cost table
+  updateCost(b);
+
+  // Tips
+  updateTips(b);
+}
+
+function updateCost(b) {
+  const body = document.getElementById('costBody');
+  body.innerHTML = MODELS.map(m => {
+    const inputCost = (b.prompt / 1_000_000) * m.inputPrice;
+    const outputCost = (b.out / 1_000_000) * m.outputPrice;
+    const total = inputCost + outputCost;
+    return `<tr>
+      <td>${m.name}</td>
+      <td>$${m.inputPrice.toFixed(2)}</td>
+      <td>$${m.outputPrice.toFixed(2)}</td>
+      <td class="cost-val">$${total < 0.0001 && b.total > 0 ? '<0.0001' : total.toFixed(4)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function updateTips(b) {
+  const tips = [];
+
+  if (b.total === 0) {
+    tips.push({ level: 'ok', text: 'Enter text in the budget planner or quick estimate to get contextual tips.' });
+    renderTips(tips);
+    return;
+  }
+
+  MODELS.forEach(m => {
+    if (b.total > m.ctx) {
+      tips.push({ level: 'danger', text: `Total (${fmt(b.total)} tokens) exceeds ${m.name} context window (${fmt(m.ctx)}).` });
+    }
+  });
+
+  const smallestFit = MODELS.filter(m => b.total <= m.ctx).sort((a,b) => a.ctx - b.ctx)[0];
+  if (smallestFit) {
+    const usagePct = (b.prompt / smallestFit.ctx) * 100;
+    if (usagePct > 50) {
+      tips.push({ level: 'warn', text: `Prompt uses ${usagePct.toFixed(0)}% of ${smallestFit.name}'s context — leaves little room for the response. Consider trimming or using a larger model.` });
+    }
+  }
+
+  if (b.sys > 4000) {
+    tips.push({ level: 'warn', text: `System prompt is ~${fmt(b.sys)} tokens — unusually large. Consider extracting reference data into retrieval or tool calls.` });
+  }
+
+  if (b.out < 256 && b.prompt > 0) {
+    tips.push({ level: 'warn', text: 'Output reserve is very low. The model may truncate its response.' });
+  }
+
+  if (b.few > b.sys && b.few > 1000) {
+    tips.push({ level: 'warn', text: 'Few-shot examples exceed system prompt size. Consider reducing examples or using dynamic selection.' });
+  }
+
+  const cheapest = MODELS.filter(m => b.total <= m.ctx).sort((a,b) => {
+    const ca = (b.prompt/1e6)*a.inputPrice + (b.out/1e6)*a.outputPrice;
+    const cb = (b.prompt/1e6)*b.inputPrice + (b.out/1e6)*b.outputPrice;
+    return ca - cb;
+  })[0];
+  if (cheapest) {
+    const cost = (b.prompt/1e6)*cheapest.inputPrice + (b.out/1e6)*cheapest.outputPrice;
+    tips.push({ level: 'ok', text: `Most cost-effective model for this budget: ${cheapest.name} at ~$${cost.toFixed(4)}/request.` });
+  }
+
+  if (b.prompt > 0 && b.total <= 128000) {
+    tips.push({ level: 'ok', text: 'Prompt fits within all listed models\' context windows.' });
+  }
+
+  if (tips.length === 0) {
+    tips.push({ level: 'ok', text: 'Budget looks good. No issues detected.' });
+  }
+
+  renderTips(tips);
+}
+
+function renderTips(tips) {
+  const c = document.getElementById('tipsContainer');
+  c.innerHTML = tips.map(t => {
+    const icon = t.level === 'danger' ? '&#10007;' : t.level === 'warn' ? '&#9888;' : '&#10003;';
+    return `<li class="${t.level}"><span class="tip-icon">${icon}</span> ${t.text}</li>`;
+  }).join('');
+}
+
+// Quick estimate
+const quickText = document.getElementById('quickText');
+quickText.addEventListener('input', () => {
+  const text = quickText.value;
+  const chars = text.length;
+  const words = countWords(text);
+  const tokens = estimateTokens(text);
+  document.getElementById('charCount').textContent = fmt(chars);
+  document.getElementById('wordCount').textContent = fmt(words);
+  document.getElementById('tokenCount').textContent = fmt(tokens);
+  updateModelBars(tokens);
+});
+
+// Budget inputs
+['budgetSystem', 'budgetFewShot', 'budgetUser', 'budgetOutput'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateBudget);
+});
+
+// Tabs
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tabId = btn.dataset.tab;
+    btn.closest('.card').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.closest('.card').querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + tabId).classList.add('active');
+  });
+});
+
+// Init
+buildModelBars();
+updateBudget();
+</script>
+</body>
+</html>
